@@ -10,7 +10,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 )
 
@@ -25,9 +24,6 @@ var rootCmd = &cobra.Command{
 	Use:   "zeus",
 	Short: "Addons for Grafana LGTM",
 	Long:  `Zeus is a collection of add-ons for Grafana LGTM stack that help facilitate operating an OSS observability stack`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -40,25 +36,20 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.zeus.yaml)")
+	rootCmd.PersistentFlags().String("objstore.config", "", "The configuration for the object store used by zeus")
+	rootCmd.PersistentFlags().String("objstore.config-file", "", "The configuration file for the object store used by zeus")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func gracefulShutdown(ctx context.Context, server *http.Server, api *gin.Engine) {
-	// wait for signal
+func gracefulShutdown(ctx context.Context, server *http.Server) {
 	<-ctx.Done()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	slog.Info("gracefully shutting down the server")
+	slog.Info("gracefully shutting down the service")
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		slog.Error("unable to shutdown server", "error", err)
+		slog.Error("unable to shutdown http server", "error", err)
 	}
-	slog.Info("server shutdown complete, see you next time")
 }

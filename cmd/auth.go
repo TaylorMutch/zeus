@@ -21,42 +21,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// authCmd represents the auth command
 var authCmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Starts the zeus auth addon server",
 	Long:  `The auth addon is a service that provides authentication for the zeus stack. See INSERT LINK for more information`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runAuth(); err != nil {
+		if err := runAuth(
+			cmd.Flag("server.addr").Value.String(),
+			cmd.Flag("objstore.config").Value.String(),
+			cmd.Flag("objstore.config-file").Value.String(),
+		); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
 				slog.Error("zeus auth failed to run service correctly", "error", err)
 			}
+		} else {
+			slog.Info("auth shutdown complete, see you next time")
 		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(authCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// authCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// authCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	authCmd.Flags().String("server.addr", ":8080", "The address to run the auth server on")
 }
 
-// runAuth runs the auth service
-func runAuth() error {
-
-	// Setup shutdown signals
+func runAuth(serverAddr, objstoreConfigStr, objstoreConfigFile string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer cancel()
-
-	// Initialize telemetry
 	telemetryShutdown, err := telemetry.Init(ctx, "zeus-auth", serviceVersion)
 	if err != nil {
 		slog.Error("failed to setup telemetry", "error", err)
@@ -64,12 +55,15 @@ func runAuth() error {
 	}
 	defer telemetryShutdown(ctx)
 
-	// Setup storage provider to sync authentication from
-	// TODO - configuration for blob storage provider
-	store, err := storage.NewObjectStore("zeus-auth", []byte(`type: FILESYSTEM
-config:
-  directory: "/tmp/zeus-auth"
-prefix: ""`))
+	if objstoreConfigStr == "" && objstoreConfigFile == "" {
+		return fmt.Errorf("either --objstore.config or --objstore.config-file must be provided")
+	}
+	objstoreConfig, err := storage.ReadObjstoreConfig(objstoreConfigStr, objstoreConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to read objstore config: %w", err)
+	}
+
+	store, err := storage.NewObjectStore("zeus-auth", objstoreConfig)
 	if err != nil {
 		return fmt.Errorf("failed to setup storage provider: %w", err)
 	}
@@ -86,6 +80,7 @@ prefix: ""`))
 			c.String(http.StatusUnauthorized, "unauthorized")
 			return
 		}
+
 		cred, err := authstore.GetCredential(c.Request.Context(), user)
 		if err != nil {
 			if errors.Is(err, auth.CredentialDoesNotExistError) {
@@ -94,7 +89,8 @@ prefix: ""`))
 			}
 			c.String(http.StatusInternalServerError, "server error")
 		}
-		authorized := auth.NewPasswordFactory().VerifyPassword(pass, cred.Password.CipherText, cred.Password.Salt)
+
+		authorized := auth.DefaultPasswordFactory.VerifyPassword(pass, cred.Password.CipherText, cred.Password.Salt)
 		if !authorized {
 			c.String(http.StatusUnauthorized, "unauthorized")
 			return
@@ -104,13 +100,10 @@ prefix: ""`))
 		c.String(http.StatusOK, "ok")
 	})
 
-	// Setup a webserver to serve auth requests
 	server := &http.Server{
-		Addr:    ":8080", // TODO - configuration for port
+		Addr:    serverAddr,
 		Handler: api,
 	}
-
-	// gracefulShutdown
-	go gracefulShutdown(ctx, server, api)
+	go gracefulShutdown(ctx, server)
 	return server.ListenAndServe()
 }
