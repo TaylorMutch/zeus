@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,7 +28,9 @@ var authCmd = &cobra.Command{
 	Long:  `The auth addon is a service that provides authentication for the zeus stack. See INSERT LINK for more information`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runAuth(); err != nil {
-			slog.Error("zeus auth failed to run service")
+			if !errors.Is(err, http.ErrServerClosed) {
+				slog.Error("zeus auth failed to run service correctly", "error", err)
+			}
 		}
 	},
 }
@@ -65,7 +68,7 @@ func runAuth() error {
 	// TODO - configuration for blob storage provider
 	store, err := storage.NewObjectStore("zeus-auth", []byte(`type: FILESYSTEM
 config:
-  directory: ""
+  directory: "/tmp/zeus-auth"
 prefix: ""`))
 	if err != nil {
 		return fmt.Errorf("failed to setup storage provider: %w", err)
@@ -77,11 +80,28 @@ prefix: ""`))
 	}
 
 	api := api.New()
-
 	api.GET("/auth", func(c *gin.Context) {
+		user, pass, ok := c.Request.BasicAuth()
+		if !ok {
+			c.String(http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		cred, err := authstore.GetCredential(c.Request.Context(), user)
+		if err != nil {
+			if errors.Is(err, auth.CredentialDoesNotExistError) {
+				c.String(http.StatusNotFound, "credential does not exist")
+				return
+			}
+			c.String(http.StatusInternalServerError, "server error")
+		}
+		authorized := auth.NewPasswordFactory().VerifyPassword(pass, cred.Password.CipherText, cred.Password.Salt)
+		if !authorized {
+			c.String(http.StatusUnauthorized, "unauthorized")
+			return
+		}
 
-		authstore.GetCredential("test")
-
+		authstore.CacheCredential(user, cred)
+		c.String(http.StatusOK, "ok")
 	})
 
 	// Setup a webserver to serve auth requests

@@ -32,8 +32,8 @@ type PasswordFactory struct {
 }
 
 type HashedPassword struct {
-	CipherText string
-	Salt       string
+	CipherText string `json:"cipher_text"`
+	Salt       string `json:"salt"`
 }
 
 func NewPasswordFactory() *PasswordFactory {

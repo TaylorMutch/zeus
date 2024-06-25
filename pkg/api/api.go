@@ -10,6 +10,7 @@ import (
 )
 
 func New() *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(sloggin.NewWithConfig(
 		slog.Default(),

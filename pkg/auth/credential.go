@@ -25,16 +25,16 @@ func init() {
 // It can be used as a basic authentication token which can be used for most requests.
 type Credential struct {
 	// ID is the ID of the token. It behaves as a username, which is randomly generated
-	ID string
+	ID string `json:"id"`
 
 	// TenantID is the tenant which the credential belongs to.
-	TenantID string
+	TenantID string `json:"tenant_id"`
 
 	// Password is the HashedPassword used for authorizing traffic for
 	// the tenant's credential.
 	// Raw passwords should be 24 characters long and contain alphanumeric characters.
 	// Raw passwords are never stored, only the hash and salt are stored.
-	Password HashedPassword
+	Password HashedPassword `json:"password"`
 }
 
 // NewCredential

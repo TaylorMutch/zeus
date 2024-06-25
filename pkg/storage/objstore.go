@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"bytes"
+	"context"
 	"os"
 
 	gokitlog "github.com/go-kit/log"
@@ -10,14 +12,14 @@ import (
 
 // ObjectStore is an interface for storing and retrieving objects
 type ObjectStore interface {
+	// Exists checks if an object exists in the object store
+	Exists(ctx context.Context, key string) (bool, error)
 	// GetObject retrieves an object from the object store
-	GetObject(key string) ([]byte, error)
-	// ListObjects lists all objects in the object store with the given prefix
-	ListObjects(prefix string) ([]string, error)
+	GetObject(ctx context.Context, key string) ([]byte, error)
 	// PutObject stores an object in the object store
-	PutObject(key string, data []byte) error
+	PutObject(ctx context.Context, key string, data []byte) error
 	// DeleteObject removes an object from the object store
-	DeleteObject(key string) error
+	DeleteObject(ctx context.Context, key string) error
 }
 
 type objectStoreImpl struct {
@@ -42,22 +44,34 @@ func NewObjectStore(componentName string, bucketConf []byte) (ObjectStore, error
 	return &s, nil
 }
 
-func (s *objectStoreImpl) GetObject(key string) ([]byte, error) {
-	// Implement this method
-	return nil, nil
+func (s *objectStoreImpl) Exists(ctx context.Context, key string) (bool, error) {
+	exists, err := s.b.Exists(ctx, key)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
-func (s *objectStoreImpl) ListObjects(prefix string) ([]string, error) {
-	// Implement this method
-	return nil, nil
+func (s *objectStoreImpl) GetObject(ctx context.Context, key string) ([]byte, error) {
+	reader, err := s.b.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(reader)
+	if err != nil {
+		return nil, err
+	}
+	data := buf.Bytes()
+
+	return data, nil
 }
 
-func (s *objectStoreImpl) PutObject(key string, data []byte) error {
-	// Implement this method
-	return nil
+func (s *objectStoreImpl) PutObject(ctx context.Context, key string, data []byte) error {
+	return s.b.Upload(ctx, key, bytes.NewReader(data))
 }
 
-func (s *objectStoreImpl) DeleteObject(key string) error {
-	// Implement this method
-	return nil
+func (s *objectStoreImpl) DeleteObject(ctx context.Context, key string) error {
+	return s.b.Delete(ctx, key)
 }
