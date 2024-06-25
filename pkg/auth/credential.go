@@ -10,34 +10,25 @@ import (
 
 const (
 	// All credential password prefixes
-	CredentialPasswordPrefix = "zeus_"
-
-	// Raw passwords should be 24 characters long
-	PasswordLength = 24
+	CredentialIDPrefix = "zeus"
 
 	// Allowed characters for random string generation
 	letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-"
 )
 
-/*
-	From a credential we should know the following:
-	- The tenant ID
-*/
+func init() {
+	assertAvailablePRNG()
+}
 
-// TODO - should this be a proto?
 // Credential represents a tenant's credential.
 // It should contain the tenant's ID, username, and password.
 // It can be used as a basic authentication token which can be used for most requests.
 type Credential struct {
-	// ID is an internal ID of the token
+	// ID is the ID of the token. It behaves as a username, which is randomly generated
 	ID string
 
 	// TenantID is the tenant which the credential belongs to.
 	TenantID string
-
-	// Username is the username used for authorizing traffic for the tenant's credential.
-	// It should be a human readable string.
-	Username string
 
 	// Password is the HashedPassword used for authorizing traffic for
 	// the tenant's credential.
@@ -46,35 +37,24 @@ type Credential struct {
 	Password HashedPassword
 }
 
-// CreateToken takes a credential and returns a token
-// than can be used for authentication.
-// It should generate a base64 encoded token from the credential
-// prefixed with `zeus_`.
-func (c *Credential) CreateToken() string {
-	return ""
-
+// NewCredential
+func NewCredential(tenant, password string) *Credential {
+	return &Credential{
+		ID:       newCredentialID(),
+		TenantID: tenant,
+		Password: DefaultPasswordFactory.HashPassword(password),
+	}
 }
 
 func newCredentialID() string {
-	// TODO - implement this
 	s, _ := GenerateRandomString(24)
-	return s
-}
-
-func hashCredential(t Credential) string {
-	// TODO - implement this
-	return ""
-}
-
-func init() {
-	assertAvailablePRNG()
+	return fmt.Sprintf("%s_%s", CredentialIDPrefix, s)
 }
 
 func assertAvailablePRNG() {
 	// Assert that a cryptographically secure PRNG is available.
 	// Panic otherwise.
 	buf := make([]byte, 1)
-
 	_, err := io.ReadFull(rand.Reader, buf)
 	if err != nil {
 		panic(fmt.Sprintf("crypto/rand is unavailable: Read() failed with %#v", err))

@@ -4,9 +4,20 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
+	"log/slog"
+	"net/http"
 	"os"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
+)
+
+var (
+	// See https://www.digitalocean.com/community/tutorials/using-ldflags-to-set-version-information-for-go-applications
+	// for setting ldflags for dynamic version
+	serviceVersion = "development"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -38,4 +49,16 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+func gracefulShutdown(ctx context.Context, server *http.Server, api *gin.Engine) {
+	// wait for signal
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	slog.Info("gracefully shutting down the server")
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error("unable to shutdown server", "error", err)
+	}
+	slog.Info("server shutdown complete, see you next time")
 }

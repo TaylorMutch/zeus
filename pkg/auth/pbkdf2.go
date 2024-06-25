@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
 	"encoding/base64"
 	"hash"
@@ -10,9 +11,18 @@ import (
 )
 
 const (
+	// Raw passwords should be 24 characters long
+	DefaultPasswordLength = 24
+
 	// MinSaltSize a minimum salt size recommended by the RFC
-	MinSaltSize = 64
+	SaltSize = 64
+
+	// Iterations
+	Iterations = 10000
 )
+
+// DefaultPasswordFactory is the default password factory for zeus
+var DefaultPasswordFactory = NewPasswordFactory()
 
 type PasswordFactory struct {
 	Digest     func() hash.Hash
@@ -26,16 +36,12 @@ type HashedPassword struct {
 	Salt       string
 }
 
-func NewPassword(digest func() hash.Hash, saltSize int, keyLen int, iter int) *PasswordFactory {
-	if saltSize < MinSaltSize {
-		saltSize = MinSaltSize
-	}
-
+func NewPasswordFactory() *PasswordFactory {
 	return &PasswordFactory{
-		Digest:     digest,
-		SaltSize:   saltSize,
-		KeyLen:     keyLen,
-		Iterations: iter,
+		Digest:     crypto.SHA512.New,
+		SaltSize:   SaltSize,
+		KeyLen:     DefaultPasswordLength,
+		Iterations: Iterations,
 	}
 }
 
@@ -59,7 +65,6 @@ func (p *PasswordFactory) HashPassword(password string) HashedPassword {
 func (p *PasswordFactory) VerifyPassword(password, cipherText, salt string) bool {
 	saltBytes := bytes.NewBufferString(salt).Bytes()
 	df := pbkdf2.Key([]byte(password), saltBytes, p.Iterations, p.KeyLen, p.Digest)
-
 	return equal(cipherText, df)
 }
 

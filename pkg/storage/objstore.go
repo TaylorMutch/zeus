@@ -34,7 +34,7 @@ func NewObjectStore(componentName string, bucketConf []byte) (ObjectStore, error
 		componentName,
 	)
 	if err != nil {
-		//logger.Log("msg", "failed to create object store bucket", "err", err)
+		logger.Log("msg", "failed to create object store bucket", "err", err)
 		return nil, err
 	}
 	s.b = b
