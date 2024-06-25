@@ -36,11 +36,11 @@ func Execute() {
 }
 
 func init() {
+	// Global flags
 	rootCmd.PersistentFlags().String("objstore.config", "", "The configuration for the object store used by zeus")
 	rootCmd.PersistentFlags().String("objstore.config-file", "", "The configuration file for the object store used by zeus")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
+	// Local flags
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 

@@ -42,6 +42,8 @@ var authCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(authCmd)
+
+	// Local flags
 	authCmd.Flags().String("server.addr", ":8080", "The address to run the auth server on")
 }
 
