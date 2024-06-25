@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/TaylorMutch/zeus/pkg/auth"
 	"github.com/TaylorMutch/zeus/pkg/storage"
+	"github.com/TaylorMutch/zeus/pkg/telemetry"
 	"github.com/spf13/cobra"
 )
 
@@ -19,58 +21,54 @@ var generatePasswordCmd = &cobra.Command{
 	Short: "Generate a zeus credentials",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("generate-password called")
-		if err := runGeneratePassword(); err != nil {
-			fmt.Println("error generating password: ", err)
+		if err := runGeneratePassword(
+			cmd.Flag("tenant-id").Value.String(),
+			cmd.Flag("objstore.config").Value.String(),
+			cmd.Flag("objstore.config-file").Value.String(),
+		); err != nil {
+			slog.Error("error generating password: ", "error", err)
 		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(generatePasswordCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// generatePasswordCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// generatePasswordCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	generatePasswordCmd.Flags().String("tenant-id", "", "The tenant to generate a password for")
+	generatePasswordCmd.MarkFlagRequired("tenant-id")
 }
 
-func runGeneratePassword() error {
-	// TODO - parse CLI flag for tenant, object store
-	store, err := storage.NewObjectStore("zeus-auth", []byte(`type: FILESYSTEM
-config:
-  directory: "/tmp/zeus-auth"
-prefix: ""`))
+func runGeneratePassword(tenantID, objstoreConfigStr, objstoreConfigFile string) error {
+	telemetry.InitLogging()
+
+	if objstoreConfigStr == "" && objstoreConfigFile == "" {
+		return fmt.Errorf("either --objstore.config or --objstore.config-file must be provided")
+	}
+	objstoreConfig, err := storage.ReadObjstoreConfig(objstoreConfigStr, objstoreConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to read objstore config: %w", err)
+	}
+
+	store, err := storage.NewObjectStore("zeus-auth", objstoreConfig)
 	if err != nil {
 		return fmt.Errorf("failed to setup storage provider: %w", err)
 	}
 
-	// Generate a password
-	tenant := "taylor-123" // TODO - parse CLI flag
 	password, err := auth.GenerateRandomString(24)
 	if err != nil {
 		return fmt.Errorf("failed to generate password: %w", err)
 	}
 
-	cred := auth.NewCredential(tenant, password)
-	username := cred.ID
-
-	// Store the credential
+	cred := auth.NewCredential(tenantID, password)
 	byt, err := json.Marshal(cred)
 	if err != nil {
 		return fmt.Errorf("failed to marshal credential: %w", err)
 	}
 
-	fmt.Printf("Generated credential for tenant %s:\n%s\n%s\n", tenant, username, password)
-	err = store.PutObject(context.Background(), fmt.Sprintf("%s/%s", auth.CredentialStoreStoragePrefix, username), byt)
+	slog.Info("generated credential", "tenant_id", tenantID, "username", cred.ID, "password", password)
+	err = store.PutObject(context.Background(), fmt.Sprintf("%s/%s", auth.CredentialStoreStoragePrefix, cred.ID), byt)
 	if err != nil {
 		return fmt.Errorf("failed to store credential: %w", err)
 	}
-	fmt.Println("Credential stored successfully")
+	slog.Info("credential stored successfully")
 	return nil
 }
