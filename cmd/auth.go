@@ -15,6 +15,7 @@ import (
 
 	"github.com/TaylorMutch/zeus/pkg/api"
 	"github.com/TaylorMutch/zeus/pkg/auth"
+	"github.com/TaylorMutch/zeus/pkg/enums"
 	"github.com/TaylorMutch/zeus/pkg/storage"
 	"github.com/TaylorMutch/zeus/pkg/telemetry"
 	"github.com/gin-gonic/gin"
@@ -50,7 +51,7 @@ func init() {
 func runAuth(serverAddr, objstoreConfigStr, objstoreConfigFile string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer cancel()
-	telemetryShutdown, err := telemetry.Init(ctx, "zeus-auth", serviceVersion)
+	telemetryShutdown, err := telemetry.Init(ctx, enums.AuthServiceName, serviceVersion)
 	if err != nil {
 		slog.Error("failed to setup telemetry", "error", err)
 		os.Exit(1)
@@ -65,7 +66,7 @@ func runAuth(serverAddr, objstoreConfigStr, objstoreConfigFile string) error {
 		return fmt.Errorf("failed to read objstore config: %w", err)
 	}
 
-	store, err := storage.NewObjectStore("zeus-auth", objstoreConfig)
+	store, err := storage.NewObjectStore(enums.AuthServiceName, objstoreConfig)
 	if err != nil {
 		return fmt.Errorf("failed to setup storage provider: %w", err)
 	}
@@ -75,7 +76,7 @@ func runAuth(serverAddr, objstoreConfigStr, objstoreConfigFile string) error {
 		return fmt.Errorf("failed to setup auth store: %w", err)
 	}
 
-	api := api.New()
+	api := api.New(enums.AuthServiceName)
 	api.GET("/auth", func(c *gin.Context) {
 		user, pass, ok := c.Request.BasicAuth()
 		if !ok {

@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-func New() *gin.Engine {
+func New(serviceName string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(sloggin.NewWithConfig(
@@ -29,7 +29,7 @@ func New() *gin.Engine {
 			Filters:            []sloggin.Filter{sloggin.IgnorePath("/liveness", "/readiness")},
 		},
 	))
-	router.Use(otelgin.Middleware("zeus"))
+	router.Use(otelgin.Middleware(serviceName))
 	router.Use(gin.Recovery())
 	router.GET("/liveness", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 	router.GET("/readiness", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
